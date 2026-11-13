@@ -3,7 +3,7 @@
 # changes VERSION / ERROR_RATE to stage a good or a bad release.
 - op: replace
   path: /spec/template/spec/containers/0/image
-  value: ghcr.io/gowthamreddykotha14/platform-lab-demo-app:main
+  value: ghcr.io/gowthamreddykotha14/platform-lab-demo-app:c1b30a9609944aebc89aaf5e65789ed8a3fcef1d
 - op: replace
   path: /spec/template/spec/containers/0/env
   value:
