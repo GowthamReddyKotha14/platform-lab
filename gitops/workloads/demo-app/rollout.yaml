@@ -1,0 +1,62 @@
+# A canary release: new versions get 20% of pods first, and Prometheus decides
+# whether they're healthy enough to continue. If not, Argo Rollouts rolls back.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: demo-app
+  labels: { app: demo-app }
+spec:
+  replicas: 5
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: { app: demo-app }
+  template:
+    metadata:
+      labels: { app: demo-app }
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/gowthamreddykotha14/platform-lab-demo-app:main   # set by release.yaml
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: VERSION, value: v1 }
+            - { name: ERROR_RATE, value: "0" }
+            - { name: EXTRA_LATENCY_MS, value: "0" }
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 2
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 20m, memory: 32Mi }
+            limits: { memory: 96Mi }
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+      # Spread pods over both worker nodes so one node failing can't take the app down
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: demo-app }
+      # Default is 300 s before pods leave a dead node; 20 s keeps the demo snappy
+      tolerations:
+        - { key: node.kubernetes.io/not-ready, operator: Exists, effect: NoExecute, tolerationSeconds: 20 }
+        - { key: node.kubernetes.io/unreachable, operator: Exists, effect: NoExecute, tolerationSeconds: 20 }
+  strategy:
+    canary:
+      steps:
+        - setWeight: 20
+        - analysis:
+            templates:
+              - templateName: success-rate
+            args:
+              - name: canary-hash
+                valueFrom:
+                  podTemplateHashValue: Latest
+        - setWeight: 60
+        - pause: { duration: 20s }

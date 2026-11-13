@@ -1,0 +1,15 @@
+# THE RELEASE. Everything about what's running is set here, and changing this
+# file in Git is how a release happens. CI updates the image; the demo script
+# changes VERSION / ERROR_RATE to stage a good or a bad release.
+- op: replace
+  path: /spec/template/spec/containers/0/image
+  value: ghcr.io/gowthamreddykotha14/platform-lab-demo-app:main
+- op: replace
+  path: /spec/template/spec/containers/0/env
+  value:
+    - name: VERSION
+      value: v1
+    - name: ERROR_RATE
+      value: "0"
+    - name: EXTRA_LATENCY_MS
+      value: "0"

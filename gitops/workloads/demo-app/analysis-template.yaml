@@ -1,0 +1,23 @@
+# The gate a canary must pass: at least 95% of its requests succeed,
+# checked 4 times, 15 s apart. One failed check aborts the release.
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+spec:
+  args:
+    - name: canary-hash
+  metrics:
+    - name: success-rate
+      initialDelay: 20s
+      interval: 15s
+      count: 4
+      failureLimit: 1
+      successCondition: len(result) > 0 && result[0] >= 0.95
+      provider:
+        prometheus:
+          address: http://kps-prometheus.monitoring.svc:9090
+          query: |
+            sum(rate(demo_http_requests_total{namespace="demo", path="/", code!~"5..", rollouts_pod_template_hash="{{args.canary-hash}}"}[1m]))
+            /
+            sum(rate(demo_http_requests_total{namespace="demo", path="/", rollouts_pod_template_hash="{{args.canary-hash}}"}[1m]))

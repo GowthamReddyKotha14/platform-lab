@@ -1,0 +1,42 @@
+# Build the app image, publish it to GitHub's container registry, then point
+# release.yaml at the new image. That commit is the deployment: Argo CD sees
+# Git change and rolls the new image out as a canary.
+name: image
+on:
+  push:
+    branches: [main]
+    paths: ["app/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: ghcr.io/gowthamreddykotha14/platform-lab-demo-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: app
+          platforms: linux/amd64,linux/arm64     # arm64 for Apple Silicon Macs
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:main
+            ${{ env.IMAGE }}:${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+      - name: Point the release at the new image (GitOps deploy)
+        run: |
+          sed -i "s#${IMAGE}:[A-Za-z0-9._-]*#${IMAGE}:${GITHUB_SHA}#" gitops/workloads/demo-app/release.yaml
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git commit -am "deploy demo-app ${GITHUB_SHA::7} [skip ci]" && git push || echo "nothing to change"

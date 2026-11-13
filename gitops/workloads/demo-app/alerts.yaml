@@ -1,0 +1,28 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: demo-app
+  labels: { app: demo-app }
+spec:
+  groups:
+    - name: demo-app
+      rules:
+        - alert: DemoAppHighErrorRate
+          expr: |
+            sum(rate(demo_http_requests_total{namespace="demo", path="/", code=~"5.."}[1m]))
+            / sum(rate(demo_http_requests_total{namespace="demo", path="/"}[1m])) > 0.05
+          for: 1m
+          labels: { severity: warning }
+          annotations:
+            summary: "demo-app: more than 5% of requests failing"
+        - alert: DemoAppDown
+          expr: sum(up{namespace="demo", job="demo-app"}) == 0
+          for: 1m
+          labels: { severity: critical }
+          annotations:
+            summary: "demo-app: no pods are being scraped"
+        - alert: DemoAppPodsRestarting
+          expr: sum(increase(kube_pod_container_status_restarts_total{namespace="demo"}[10m])) > 3
+          labels: { severity: warning }
+          annotations:
+            summary: "demo-app: pods restarted more than 3 times in 10 minutes"

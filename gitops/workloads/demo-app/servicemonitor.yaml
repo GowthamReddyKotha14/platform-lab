@@ -1,0 +1,17 @@
+# Tells Prometheus to scrape every demo-app pod, and copies each pod's
+# rollout hash onto its metrics so canary and stable can be told apart.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: demo-app
+  labels: { app: demo-app }
+spec:
+  selector:
+    matchLabels: { app: demo-app }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_label_rollouts_pod_template_hash]
+          targetLabel: rollouts_pod_template_hash
