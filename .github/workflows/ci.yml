@@ -17,19 +17,23 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - name: Install kustomize and kubeconform
-        run: |
-          curl -sL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.5.0/kustomize_v5.5.0_linux_amd64.tar.gz | tar xz
-          curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz
       - name: Dashboard is up to date with its generator
         run: python scripts/make_dashboard.py && git diff --exit-code
+      # Unpack tools OUTSIDE the repo: the kubeconform archive ships its own LICENSE,
+      # which used to overwrite ours and fail the check above.
+      - name: Install kustomize and kubeconform
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -sL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.5.0/kustomize_v5.5.0_linux_amd64.tar.gz | tar xz -C "$RUNNER_TEMP/bin"
+          curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz -C "$RUNNER_TEMP/bin"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - name: Render and validate every manifest (incl. Argo, Rollouts, Prometheus CRDs)
         run: |
-          ./kustomize build gitops/workloads/demo-app > rendered.yaml
-          ./kubeconform -summary -strict -kubernetes-version 1.31.0 \
+          kustomize build gitops/workloads/demo-app > "$RUNNER_TEMP/rendered.yaml"
+          kubeconform -summary -strict -kubernetes-version 1.31.0 \
             -schema-location default \
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
-            rendered.yaml gitops/apps/*.yaml
+            "$RUNNER_TEMP/rendered.yaml" gitops/apps/*.yaml
 
   terraform:
     runs-on: ubuntu-latest
